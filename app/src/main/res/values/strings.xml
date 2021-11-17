@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">АЗС</string>
+    <string name="refresh">Refresh</string>
+    <string name="on">Заправить</string>
+    <string name="off">Закрыть</string>
+    <string name="disconnect">Выход</string>
+</resources>
