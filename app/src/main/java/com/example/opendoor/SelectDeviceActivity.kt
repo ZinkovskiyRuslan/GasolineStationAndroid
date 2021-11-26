@@ -42,11 +42,12 @@ class SelectDeviceActivity : AppCompatActivity() {
 
     private fun pairedDeviceList() {
         m_pairedDevices = m_bluetoothAdapter!!.bondedDevices
-        val list: ArrayList<BluetoothDevice> = ArrayList()
-
+        //val list: ArrayList<BluetoothDevice> = ArrayList()
+        var list: ArrayList<BtName> = ArrayList()
         if (!m_pairedDevices.isEmpty()) {
             for (device: BluetoothDevice in m_pairedDevices) {
-                list.add(device)
+                val n =  BtName(device)
+                list.add(n)
                 if (device.address == EXTRA_ADDRESS)
                     HAS_EXTRA_ADDRESS = true;
                 Log.i("device", "" + device)
@@ -59,11 +60,11 @@ class SelectDeviceActivity : AppCompatActivity() {
         findViewById<ListView>(R.id.select_device_list).adapter = adapter
         findViewById<ListView>(R.id.select_device_list).onItemClickListener =
             AdapterView.OnItemClickListener { _, _, position, _ ->
-                val device: BluetoothDevice = list[position]
-                val address: String = device.address
+                val device: BtName = list[position]
+                val address: String = device.toString()
 
                 val intent = Intent(this, MainActivity::class.java)
-                intent.putExtra(EXTRA_ADDRESS, address)
+                intent.putExtra(EXTRA_ADDRESS, device.device.address)
                 startActivity(intent)
             }
     }
