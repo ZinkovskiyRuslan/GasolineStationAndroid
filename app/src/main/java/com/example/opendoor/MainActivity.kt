@@ -14,6 +14,7 @@ import android.provider.Settings.Secure
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.IOException
 import java.util.*
@@ -45,6 +46,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         m_isClickClose = false
         fuelVolumeStart = "0"
+        var tryCnt = 0;
         setContentView(R.layout.activity_main)
         findViewById<TextView>(R.id.fuelVolume).text = "";
         deviceUniqueID = getDeviceUniqueID(this);
@@ -57,18 +59,31 @@ class MainActivity : AppCompatActivity() {
             )
         }
         findViewById<Button>(R.id.control_led_disconnect).setOnClickListener { disconnect() }
-        while (m_bluetoothSocket == null) {
+
+        tryCnt = 0;
+        while (m_bluetoothSocket == null && tryCnt++ <= 20) {
             Thread.sleep(100)
         }
-        while (!m_bluetoothSocket!!.isConnected) {
+
+        tryCnt = 0;
+        while (!m_bluetoothSocket!!.isConnected && tryCnt++ <= 20) {
             Thread.sleep(100)
         }
+
+        if (m_bluetoothSocket == null || !m_bluetoothSocket!!.isConnected) {
+            val handler = Handler()
+            handler.post {
+                Toast.makeText(this, "Нет соединения с АЗС", Toast.LENGTH_LONG).show()
+                disconnect()
+            }
+        }
+
         sendCommand(Command.GetfuelVolume.value, "?")
         Thread.sleep(200)
         val handler = Handler()
         handler.post(object : Runnable {
             override fun run() {
-                if(!m_isClickClose) {
+                if (!m_isClickClose) {
                     var res = readStringThread()
                     //var res = readString()
                     actionFromMessage(res)
@@ -114,7 +129,8 @@ class MainActivity : AppCompatActivity() {
         }
         if (messageArray[1] == Command.StartFuelFill.value) {
             findViewById<TextView>(R.id.fuelVolume).text =
-                StringBuilder().append(fuelVolumeStart).append("/").append(messageArray[2]).append(" л.").toString()
+                StringBuilder().append(fuelVolumeStart).append("/").append(messageArray[2])
+                    .append(" л.").toString()
         }
     }
 
@@ -141,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                 var msg = bluetoothReadedMessage!!.split("\r\n")
                 if (!msg.isNullOrEmpty()) {
                     if (msg.lastIndex > 0) {
-                        var v=msg[msg.lastIndex - 1]
+                        var v = msg[msg.lastIndex - 1]
                         bluetoothReadedMessage = msg[msg.lastIndex - 1];
                     }
                 }

@@ -24,51 +24,51 @@ class SelectDeviceActivity : AppCompatActivity() {
         setContentView(R.layout.select_device_layout)
 
         m_bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        if(m_bluetoothAdapter == null) {
-            toast("this device doesn't support bluetooth")
+        if (m_bluetoothAdapter == null) {
+            toast("bluetooth не поддерживается")
             return
         }
-        if(!m_bluetoothAdapter!!.isEnabled) {
+        if (!m_bluetoothAdapter!!.isEnabled) {
             val enableBluetoothIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(enableBluetoothIntent, REQUEST_ENABLE_BLUETOOTH)
         }
         pairedDeviceList()
-        findViewById<Button>(R.id.select_device_refresh).setOnClickListener{ pairedDeviceList() }
+        findViewById<Button>(R.id.select_device_refresh).setOnClickListener { pairedDeviceList() }
 
-        if(HAS_EXTRA_ADDRESS)
+        if (HAS_EXTRA_ADDRESS)
             startMainActivity()
 
     }
 
     private fun pairedDeviceList() {
         m_pairedDevices = m_bluetoothAdapter!!.bondedDevices
-        val list : ArrayList<BluetoothDevice> = ArrayList()
+        val list: ArrayList<BluetoothDevice> = ArrayList()
 
         if (!m_pairedDevices.isEmpty()) {
             for (device: BluetoothDevice in m_pairedDevices) {
                 list.add(device)
                 if (device.address == EXTRA_ADDRESS)
                     HAS_EXTRA_ADDRESS = true;
-                Log.i("device", ""+device)
+                Log.i("device", "" + device)
             }
         } else {
-            toast("no paired bluetooth devices found")
+            toast("Нет сопряженных устройств")
         }
 
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
         findViewById<ListView>(R.id.select_device_list).adapter = adapter
-        findViewById<ListView>(R.id.select_device_list).onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-            val device: BluetoothDevice = list[position]
-            val address: String = device.address
+        findViewById<ListView>(R.id.select_device_list).onItemClickListener =
+            AdapterView.OnItemClickListener { _, _, position, _ ->
+                val device: BluetoothDevice = list[position]
+                val address: String = device.address
 
-            val intent = Intent(this, MainActivity::class.java)
-            intent.putExtra(EXTRA_ADDRESS, address)
-            startActivity(intent)
-        }
+                val intent = Intent(this, MainActivity::class.java)
+                intent.putExtra(EXTRA_ADDRESS, address)
+                startActivity(intent)
+            }
     }
 
-    private fun startMainActivity()
-    {
+    private fun startMainActivity() {
         val intent = Intent(this, MainActivity::class.java)
         intent.putExtra(EXTRA_ADDRESS, EXTRA_ADDRESS)
         startActivity(intent)
@@ -79,12 +79,16 @@ class SelectDeviceActivity : AppCompatActivity() {
         if (requestCode == REQUEST_ENABLE_BLUETOOTH) {
             if (resultCode == Activity.RESULT_OK) {
                 if (m_bluetoothAdapter!!.isEnabled) {
-                    toast("Bluetooth has been enabled")
+                    toast("Bluetooth включен")
+                    pairedDeviceList()
+                    findViewById<Button>(R.id.select_device_refresh).setOnClickListener { pairedDeviceList() }
+                    if (HAS_EXTRA_ADDRESS)
+                        startMainActivity()
                 } else {
-                    toast("Bluetooth has been disabled")
+                    toast("Bluetooth отключен")
                 }
             } else if (resultCode == Activity.RESULT_CANCELED) {
-                toast("Bluetooth enabling has been canceled")
+                toast("Bluetooth отклонён")
             }
         }
     }
