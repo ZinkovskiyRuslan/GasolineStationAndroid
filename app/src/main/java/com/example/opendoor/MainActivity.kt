@@ -35,60 +35,56 @@ class MainActivity : AppCompatActivity() {
 
         enum class Command(val value: String) {
             GetfuelVolume("0"),
-            StartFuelFill("1"),
+            GetfuelVolumeRetry("1"),
+            StartFuelFill("2"),
         }
 
         var m_isClickClose: Boolean = false
         var fuelVolumeStart: String = ""
+
+        var i:Int = 0
+        var isNeedGetfuelVolumeRetry: Boolean = false;
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         m_isClickClose = false
         fuelVolumeStart = "0"
-        var tryCnt = 0;
+        i = 0;
+        isNeedGetfuelVolumeRetry = false;
         setContentView(R.layout.activity_main)
         findViewById<TextView>(R.id.fuelVolume).text = "";
         deviceUniqueID = getDeviceUniqueID(this);
         m_address = intent.getStringExtra(SelectDeviceActivity.EXTRA_ADDRESS).toString()
-        ConnectToDevice(this).execute()
+
         findViewById<Button>(R.id.startFuelFill).setOnClickListener {
             sendCommand(
                 Command.StartFuelFill.value,
                 "?"
             )
         }
-        findViewById<Button>(R.id.control_led_disconnect).setOnClickListener { disconnect() }
+        findViewById<Button>(R.id.control_led_disconnect).setOnClickListener { exit() }
 
-        tryCnt = 0;
-        while (m_bluetoothSocket == null && tryCnt++ <= 20) {
-            Thread.sleep(100)
-        }
-
-        tryCnt = 0;
-        while (!m_bluetoothSocket!!.isConnected && tryCnt++ <= 20) {
-            Thread.sleep(100)
-        }
-
-        if (m_bluetoothSocket == null || !m_bluetoothSocket!!.isConnected) {
-            val handler = Handler()
-            handler.post {
-                Toast.makeText(this, "Нет соединения с АЗС", Toast.LENGTH_LONG).show()
-                disconnect()
-            }
-        }
-
+        var t = this
+        connectToBlueToothDevice(t)
         sendCommand(Command.GetfuelVolume.value, "?")
         Thread.sleep(200)
+
         val handler = Handler()
         handler.post(object : Runnable {
             override fun run() {
+                println("$i: $bluetoothReadedMessage")
+                if (i == 15 && isNeedGetfuelVolumeRetry) {
+                    connectToBlueToothDevice(t);
+                    sendCommand(Command.GetfuelVolumeRetry.value, "?");
+                }
                 if (!m_isClickClose) {
                     var res = readStringThread()
                     //var res = readString()
                     actionFromMessage(res)
                     handler.postDelayed(this, 1000)
                 }
+                i += 1;
             }
         })
 
@@ -111,7 +107,7 @@ class MainActivity : AppCompatActivity() {
                 //actionFromMessage(res)
             } catch (e: IOException) {
                 e.printStackTrace()
-                findViewById<TextView>(R.id.fuelVolume).text = "00";
+                findViewById<TextView>(R.id.fuelVolume).text = "Ошибка";
             }
         }
     }
@@ -122,15 +118,36 @@ class MainActivity : AppCompatActivity() {
             return;
         if (messageArray[0] != deviceUniqueID)//invalid deviceUniqueID
             return;
-        if (messageArray[1] == Command.GetfuelVolume.value) {
-            findViewById<TextView>(R.id.fuelVolume).text =
-                StringBuilder().append(messageArray[2]).append(" л.").toString()
-            fuelVolumeStart = messageArray[2]
+        if (messageArray[1] == Command.GetfuelVolume.value || messageArray[1] == Command.GetfuelVolumeRetry.value) {
+            if(messageArray[2]=="0")
+            {
+                findViewById<TextView>(R.id.fuelVolume).text = "";
+                isNeedGetfuelVolumeRetry = true;
+                disconnect();
+            }
+            else {
+                findViewById<TextView>(R.id.fuelVolume).text =
+                    StringBuilder().append(messageArray[2]).append(" л.").toString()
+                fuelVolumeStart = messageArray[2]
+            }
+        }
+        if (messageArray[1] == Command.GetfuelVolumeRetry.value) {
+            if(messageArray[2]=="0")
+            {
+                findViewById<TextView>(R.id.fuelVolume).text = "Отказ"
+            }
+            else {
+                findViewById<TextView>(R.id.fuelVolume).text =
+                    StringBuilder().append(messageArray[2]).append(" л.").toString()
+                fuelVolumeStart = messageArray[2]
+            }
         }
         if (messageArray[1] == Command.StartFuelFill.value) {
             findViewById<TextView>(R.id.fuelVolume).text =
                 StringBuilder().append(fuelVolumeStart).append("/").append(messageArray[2])
                     .append(" л.").toString()
+            if(fuelVolumeStart == messageArray[2])
+                disconnect()
         }
     }
 
@@ -144,29 +161,42 @@ class MainActivity : AppCompatActivity() {
     private fun readStringThread(): String {
         val readThread = Thread {
             try {
+                /* Example 2
+                    while (inputStream.available() == 0);
+                    val available = inputStream.available()
+                    val bytes = ByteArray(available)
+                    inputStream.read(bytes, 0, available)
+                    val text = String(bytes)
+                 */
                 bluetoothReadedMessage = "";
-                val buffer = ByteArray(256)
-                var bytes = m_bluetoothSocket!!.inputStream.read(buffer)
-                bluetoothReadedMessage = String(buffer, 0, bytes)
-
-                while (bluetoothReadedMessage!!.indexOf("\r\n") == -1) {
+                if( m_bluetoothSocket != null && m_bluetoothSocket!!.inputStream.available()  > 0) {
+                    val buffer = ByteArray(256)
                     var bytes = m_bluetoothSocket!!.inputStream.read(buffer)
-                    bluetoothReadedMessage = StringBuilder().append(bluetoothReadedMessage)
-                        .append(String(buffer, 0, bytes)).toString()
-                }
-                var msg = bluetoothReadedMessage!!.split("\r\n")
-                if (!msg.isNullOrEmpty()) {
-                    if (msg.lastIndex > 0) {
-                        var v = msg[msg.lastIndex - 1]
-                        bluetoothReadedMessage = msg[msg.lastIndex - 1];
+                    var btReadedMessage = String(buffer, 0, bytes)
+
+                    while (btReadedMessage!!.indexOf("\r\n") == -1) {
+                        var bytes = m_bluetoothSocket!!.inputStream.read(buffer)
+                        btReadedMessage = StringBuilder().append(btReadedMessage)
+                            .append(String(buffer, 0, bytes)).toString()
                     }
+                    var msg = btReadedMessage!!.split("\r\n")
+                    if (!msg.isNullOrEmpty()) {
+                        if (msg.lastIndex > 0) {
+                            var v = msg[msg.lastIndex - 1]
+                            btReadedMessage = msg[msg.lastIndex - 1];
+                        }
+                    }
+                    if (btReadedMessage!!.indexOf("\r\n") != -1) {
+                        btReadedMessage!!.replace("\r\n", "")
+                    }
+                    if (btReadedMessage.isNotEmpty())
+                        bluetoothReadedMessage = btReadedMessage
+                    println(
+                        StringBuilder().append("btReadedMessage = ").append(btReadedMessage)
+                            .append("; bluetoothReadedMessage = ").append(bluetoothReadedMessage)
+                            .append(";")
+                    )
                 }
-                if (bluetoothReadedMessage!!.indexOf("\r\n") != -1) {
-                    var v = bluetoothReadedMessage
-                    v = v + "--"
-                    bluetoothReadedMessage!!.replace("\r\n", "")
-                }
-                println(bluetoothReadedMessage)
             } catch (e: IOException) {
                 // TODO Auto-generated catch block
                 e.printStackTrace()
@@ -176,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         synchronized(readThread) {
             readThread.start()
             readThread.join(900)
+            /*
             try {
                 if (readThread.isAlive) {
                     // probably really not good practice!
@@ -183,7 +214,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: InterruptedException) {
                 // TODO Auto-generated catch block
                 e.printStackTrace()
-            }
+            }*/
             return bluetoothReadedMessage
         }
     }
@@ -193,9 +224,14 @@ class MainActivity : AppCompatActivity() {
         return Secure.getString(activity.contentResolver, Secure.ANDROID_ID)
     }
 
+    private fun exit() {
+        m_isClickClose = true;
+        disconnect()
+        finish()
+    }
     private fun disconnect() {
-        m_isClickClose = true
-        Thread.sleep(500)
+       // m_isClickClose = true
+        Thread.sleep(1000)
         if (m_bluetoothSocket != null) {
             try {
                 m_bluetoothSocket!!.close()
@@ -205,7 +241,29 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
         }
-        finish()
+    }
+
+    private fun connectToBlueToothDevice(context: Context){
+        m_isClickClose = false;
+        var tryCnt = 0;
+        ConnectToDevice(context).execute()
+        tryCnt = 0;
+        while (m_bluetoothSocket == null && tryCnt++ <= 20) {
+            Thread.sleep(100)
+        }
+
+        tryCnt = 0;
+        while (!m_bluetoothSocket!!.isConnected && tryCnt++ <= 100) {
+            Thread.sleep(100)
+        }
+
+        if (m_bluetoothSocket == null || !m_bluetoothSocket!!.isConnected) {
+            val handler = Handler()
+            handler.post {
+                Toast.makeText(this, "Нет соединения с АЗС", Toast.LENGTH_LONG).show()
+                exit()
+            }
+        }
     }
 
     private class ConnectToDevice(c: Context) : AsyncTask<Void, Void, String>() {

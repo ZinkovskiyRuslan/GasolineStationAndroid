@@ -32,6 +32,7 @@ class SelectDeviceActivity : AppCompatActivity() {
             val enableBluetoothIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivityForResult(enableBluetoothIntent, REQUEST_ENABLE_BLUETOOTH)
         }
+        Thread.sleep(300);
         pairedDeviceList()
         findViewById<Button>(R.id.select_device_refresh).setOnClickListener { pairedDeviceList() }
 
